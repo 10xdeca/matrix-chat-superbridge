@@ -1,6 +1,6 @@
 # Matrix Self-Hosted Server Research
 
-**Date:** 2026-02-01
+**Date:** 2026-02-01 (Updated: 2026-02-02)
 
 ## Executive Summary
 
@@ -10,10 +10,12 @@ Matrix is a decentralized, open-standard communication protocol for real-time co
 
 | Use Case | Server | Database | Why |
 |----------|--------|----------|-----|
-| Personal/Small (1-10 users) | Conduit | SQLite/RocksDB | Minimal resources, easy setup |
+| Personal/Small (1-10 users) | Synapse | PostgreSQL | Most reliable, best bridge support |
 | Small-Medium (10-100 users) | Synapse | PostgreSQL | Mature, full features, good bridge support |
 | Large/Enterprise (100+ users) | Synapse (workers) | PostgreSQL | Scalable, battle-tested |
-| Experimental/Cutting Edge | Dendrite | PostgreSQL | Modern architecture, improving rapidly |
+| Lightweight/Experimental | Continuwuity | RocksDB | Active Rust community fork, low resources |
+
+> **Note (2026-02):** Dendrite is now in maintenance mode at Matrix.org (moved to Element). Conduit's main fork (conduwuit) was archived in April 2025. For lightweight options, consider Continuwuity (community continuation) or stick with Synapse for stability.
 
 ### Top Bridge Recommendations
 
@@ -57,29 +59,35 @@ The original and most widely deployed Matrix homeserver.
 
 ### Dendrite (Go - Second Generation)
 
-Official second-generation homeserver written in Go.
+Second-generation homeserver written in Go.
+
+> **Status (2026-02):** The Matrix.org Foundation archived Dendrite in November 2024. Development continues under Element at [element-hq/dendrite](https://github.com/element-hq/dendrite), but the project is now in maintenance mode with limited active development.
 
 **Pros:**
 - Lower resource usage than Synapse
 - Better performance characteristics
 - Can run as monolith or microservices
-- Active development by Matrix.org
 
 **Cons:**
-- Not fully feature-complete yet
+- In maintenance mode (limited new development)
+- Not fully feature-complete
 - Smaller community
 - Some bridges may have compatibility issues
+- Future tied to Element's priorities
 
 **Resource Requirements:**
 - RAM: 200-500MB for active use
 - CPU: 1 core typically sufficient
 - Storage: Similar to Synapse
 
-**Repository:** https://github.com/matrix-org/dendrite
+**Repository:** https://github.com/element-hq/dendrite (active)
+**Archived:** https://github.com/matrix-org/dendrite (read-only)
 
-### Conduit (Rust - Lightweight)
+### Conduit / Continuwuity (Rust - Lightweight)
 
-Community-developed lightweight homeserver.
+Lightweight Rust-based homeservers.
+
+> **Status (2026-02):** The original Conduit is in maintenance/beta mode. Its popular fork **conduwuit** was archived in April 2025. The community has continued development as **Continuwuity**.
 
 **Pros:**
 - Extremely lightweight (50-200MB RAM)
@@ -89,12 +97,21 @@ Community-developed lightweight homeserver.
 - Uses RocksDB (no separate database needed)
 
 **Cons:**
+- Fragmented ecosystem (multiple forks)
 - Fewer features than Synapse
 - Limited admin tooling
-- Smaller community
-- Some advanced features missing
+- Some bridges may have compatibility issues
+- Smaller community for troubleshooting
 
-**Repository:** https://gitlab.com/famedly/conduit
+**Resource Requirements:**
+- RAM: 50-200MB
+- CPU: 1 core typically sufficient
+- Storage: Grows with usage
+
+**Repositories:**
+- **Continuwuity** (recommended): https://forgejo.ellis.link/continuwuation/continuwuity
+- Conduit (original, maintenance mode): https://gitlab.com/famedly/conduit
+- conduwuit (archived April 2025): https://codeberg.org/arf/conduwuit
 
 ---
 
@@ -309,12 +326,14 @@ For a complete setup including bridges, use the community playbook:
 https://github.com/spantaleev/matrix-docker-ansible-deploy
 
 This handles:
-- Synapse or Dendrite
+- Synapse (recommended) or Dendrite
 - All popular bridges
 - Reverse proxy
 - SSL certificates
 - PostgreSQL
 - Admin tools
+
+> **Note:** Synapse is the most reliable choice for this playbook due to best documentation, bridge compatibility, and long-term Matrix.org support.
 
 ### Database Configuration
 
@@ -495,8 +514,9 @@ Usually not needed for self-hosting. If required:
 ### Official Documentation
 - Matrix Spec: https://spec.matrix.org/
 - Synapse Docs: https://matrix-org.github.io/synapse/latest/
-- Dendrite Docs: https://matrix-org.github.io/dendrite/
+- Dendrite Docs: https://matrix-org.github.io/dendrite/ (may be outdated)
 - Conduit Docs: https://docs.conduit.rs/
+- Continuwuity Docs: https://forgejo.ellis.link/continuwuation/continuwuity
 
 ### Community Resources
 - Ansible Playbook: https://github.com/spantaleev/matrix-docker-ansible-deploy
