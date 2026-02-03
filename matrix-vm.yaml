@@ -1,0 +1,50 @@
+# Lima VM configuration for Matrix server testing
+# Docs: https://lima-vm.io/
+
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
+    arch: "x86_64"
+
+# 4GB RAM, 2 CPUs for Matrix + bridges
+memory: "4GiB"
+cpus: 2
+disk: "50GiB"
+
+# Mount the playbook directory
+mounts:
+  - location: "/Users/nick/git/orgs/xdeca/matrix-chat-superbridge"
+    writable: true
+
+# Forward ports for Matrix services
+portForwards:
+  - guestPort: 80
+    hostPort: 8080
+  - guestPort: 443
+    hostPort: 8443
+  - guestPort: 8448
+    hostPort: 8448
+
+# Provision with Docker
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      # Install Docker
+      if ! command -v docker &> /dev/null; then
+        curl -fsSL https://get.docker.com | sh
+        usermod -aG docker $LIMA_CIDATA_USER
+      fi
+
+      # Install required packages
+      apt-get update
+      apt-get install -y python3-pip python3-venv pwgen
+
+# Use vmType vz for Apple Silicon (faster)
+vmType: "vz"
+rosetta:
+  enabled: true
+  binfmt: true
