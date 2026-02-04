@@ -34,7 +34,7 @@ Matrix Chat Superbridge -- bridge Discord, Telegram (and potentially more) throu
 
 ### Credentials
 Stored in `.env.local` (gitignored). Key accounts:
-- Matrix user: `admin2` / `localtest123` (original `admin` had password issues)
+- Matrix user: `admin2` (password in `.env.local`; original `admin` had password issues)
 - Synapse admin API: `admin2` is a server admin
 
 ## Key Configuration
@@ -96,7 +96,7 @@ curl -sk -X POST 'https://matrix.local/_synapse/admin/v1/rooms/<room_id>/make_ro
 # Get access token
 curl -sk -X POST https://matrix.local/_matrix/client/v3/login \
   -H 'Content-Type: application/json' \
-  -d '{"type":"m.login.password","user":"admin2","password":"localtest123"}'
+  -d '{"type":"m.login.password","user":"admin2","password":"<see .env.local>"}'
 ```
 
 ## Common Problems and Fixes

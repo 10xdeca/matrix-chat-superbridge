@@ -2,6 +2,28 @@
 
 Bridge multiple chat platforms (Discord, Telegram, etc.) through Matrix so users can communicate across platforms as themselves.
 
+## Quick Start
+
+```bash
+# 1. Start Lima VM
+limactl start matrix-vm.yaml --name matrix
+
+# 2. Add to /etc/hosts
+# 127.0.0.1 local matrix.local element.local synapse-admin.local
+
+# 3. Clone playbook and deploy
+git clone https://github.com/spantaleev/matrix-docker-ansible-deploy.git
+cd matrix-docker-ansible-deploy
+ansible-galaxy install -r requirements.yml
+ansible-playbook -i inventory/hosts setup.yml --tags=setup-all,ensure-matrix-users-created,start
+
+# 4. Accept self-signed certs in browser
+# Visit https://matrix.local:8443 and https://element.local:8443
+
+# 5. Log into Element, set up bridges, bridge a room to both platforms
+# See detailed instructions below
+```
+
 ## How It Works
 
 ```
