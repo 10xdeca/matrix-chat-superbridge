@@ -57,7 +57,7 @@ resource "google_compute_instance" "matrix" {
 
   service_account {
     email  = google_service_account.matrix.email
-    scopes = ["cloud-platform"]
+    scopes = ["compute-ro", "logging-write", "monitoring-write"]
   }
 
   scheduling {

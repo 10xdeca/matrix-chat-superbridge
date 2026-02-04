@@ -59,7 +59,7 @@ resource "google_compute_firewall" "matrix_coturn" {
   target_tags   = ["matrix-server"]
 }
 
-# SSH (restricted — update source_ranges to your IP for production)
+# SSH (restricted to specified CIDRs — set via ssh_allowed_cidrs variable)
 resource "google_compute_firewall" "matrix_ssh" {
   name    = "matrix-allow-ssh"
   network = "default"
@@ -69,6 +69,6 @@ resource "google_compute_firewall" "matrix_ssh" {
     ports    = ["22"]
   }
 
-  source_ranges = ["0.0.0.0/0"]
+  source_ranges = var.ssh_allowed_cidrs
   target_tags   = ["matrix-server"]
 }

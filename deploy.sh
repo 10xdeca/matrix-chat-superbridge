@@ -9,6 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TERRAFORM_DIR="$SCRIPT_DIR/terraform"
 ANSIBLE_DIR="$SCRIPT_DIR/matrix-docker-ansible-deploy"
 ENV_FILE="$SCRIPT_DIR/.env.production"
+ENV_LOCAL="$SCRIPT_DIR/.env.local"
 
 # Colors
 RED='\033[0;31m'
@@ -102,12 +103,30 @@ step_configure() {
   info "External IP: $external_ip"
   info "sslip.io domain: $sslip_domain"
 
-  # Generate secrets if not already in .env.production
-  local homeserver_secret postgres_password
-  homeserver_secret=$(pwgen -s 64 1)
-  postgres_password=$(pwgen -s 32 1)
+  # Read Telegram API credentials from .env.local
+  local telegram_api_id telegram_api_hash
+  if [ -f "$ENV_LOCAL" ]; then
+    telegram_api_id=$(grep '^TELEGRAM_API_ID=' "$ENV_LOCAL" | cut -d= -f2)
+    telegram_api_hash=$(grep '^TELEGRAM_API_HASH=' "$ENV_LOCAL" | cut -d= -f2)
+  fi
+  if [ -z "${telegram_api_id:-}" ] || [ -z "${telegram_api_hash:-}" ]; then
+    error "Could not read TELEGRAM_API_ID/TELEGRAM_API_HASH from $ENV_LOCAL"
+    return 1
+  fi
 
-  info "Generated fresh secrets."
+  # Reuse existing secrets from .env.production if present, otherwise generate new ones
+  local homeserver_secret postgres_password
+  if [ -f "$ENV_FILE" ]; then
+    homeserver_secret=$(grep '^MATRIX_HOMESERVER_SECRET=' "$ENV_FILE" | cut -d= -f2)
+    postgres_password=$(grep '^POSTGRES_PASSWORD=' "$ENV_FILE" | cut -d= -f2)
+  fi
+  if [ -n "${homeserver_secret:-}" ] && [ -n "${postgres_password:-}" ]; then
+    warn "Reusing existing secrets from $ENV_FILE. Delete it first to regenerate."
+  else
+    homeserver_secret=$(pwgen -s 64 1)
+    postgres_password=$(pwgen -s 32 1)
+    info "Generated fresh secrets."
+  fi
 
   # Update .env.production
   cat > "$ENV_FILE" <<EOF
@@ -115,9 +134,9 @@ step_configure() {
 EXTERNAL_IP=$external_ip
 SSLIP_DOMAIN=$sslip_domain
 
-# Telegram API
-TELEGRAM_API_ID=33495539
-TELEGRAM_API_HASH=eebe93f2423ea1a091e63f7900aed721
+# Telegram API (sourced from .env.local)
+TELEGRAM_API_ID=$telegram_api_id
+TELEGRAM_API_HASH=$telegram_api_hash
 
 # Matrix Admin User (create after first deploy)
 MATRIX_ADMIN_USER=admin
@@ -187,8 +206,8 @@ matrix_static_files_container_labels_base_domain_enabled: true
 matrix_appservice_double_puppet_enabled: true
 matrix_mautrix_discord_enabled: true
 matrix_mautrix_telegram_enabled: true
-matrix_mautrix_telegram_api_id: 33495539
-matrix_mautrix_telegram_api_hash: 'eebe93f2423ea1a091e63f7900aed721'
+matrix_mautrix_telegram_api_id: $telegram_api_id
+matrix_mautrix_telegram_api_hash: '$telegram_api_hash'
 EOF
   info "Updated $vars_file"
 
