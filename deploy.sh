@@ -164,8 +164,10 @@ matrix.${ip_dashes}.sslip.io ansible_host=$external_ip ansible_port=22 ansible_s
 EOF
   info "Updated $hosts_file"
 
-  # Update Ansible vars
-  local vars_file="$ANSIBLE_DIR/inventory/host_vars/matrix.production/vars.yml"
+  # Update Ansible vars (directory must match inventory hostname)
+  local vars_dir="$ANSIBLE_DIR/inventory/host_vars/matrix.${ip_dashes}.sslip.io"
+  mkdir -p "$vars_dir"
+  local vars_file="$vars_dir/vars.yml"
 
   cat > "$vars_file" <<'VARS_HEADER'
 ---
