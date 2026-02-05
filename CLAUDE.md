@@ -32,10 +32,15 @@ Matrix Chat Superbridge -- bridge Discord, Telegram (and potentially more) throu
 127.0.0.1 local matrix.local element.local synapse-admin.local
 ```
 
-### Credentials
-Stored in `.env.local` (gitignored). Key accounts:
-- Matrix user: `admin2` (password in `.env.local`; original `admin` had password issues)
-- Synapse admin API: `admin2` is a server admin
+### Credentials (Local)
+Stored in `.env.local` (gitignored). Used for local dev only.
+
+### Credentials (Production)
+All production secrets are encrypted with Ansible Vault in `production-vault.yml` (committed).
+- Vault password file: `.vault-password` (gitignored, shared between teammates)
+- Decrypt: `ansible-vault view production-vault.yml --vault-password-file .vault-password`
+- Edit: `ansible-vault edit production-vault.yml --vault-password-file .vault-password`
+- Admin users: `nick` and `angie` (both server admins, passwords in vault)
 
 ## Key Configuration
 
@@ -50,9 +55,22 @@ Critical settings that were painful to debug:
 - `traefik_ssl_test: true` for self-signed certs
 
 ### Running Ansible
+
+Local:
 ```bash
 cd matrix-docker-ansible-deploy
 ansible-playbook -i inventory/hosts setup.yml --tags=setup-all,ensure-matrix-users-created,start
+```
+
+Production (requires vault password):
+```bash
+cd matrix-docker-ansible-deploy
+ansible-playbook -i inventory/hosts-production setup.yml \
+  --vault-password-file ../.vault-password \
+  --tags=setup-all,ensure-matrix-users-created,start
+
+# Or use the helper script:
+./deploy.sh deploy
 ```
 
 ## Bridge Operations
@@ -86,17 +104,28 @@ SELECT mxid, plain_name, name FROM portal WHERE mxid IS NOT NULL;
 - `!tg sync chats` -- Sync Telegram chats to Matrix
 
 ### Synapse Admin API
+
+Local:
 ```bash
-# Make user room admin
-curl -sk -X POST 'https://matrix.local/_synapse/admin/v1/rooms/<room_id>/make_room_admin' \
+curl -sk -X POST 'https://matrix.local:8443/_synapse/admin/v1/rooms/<room_id>/make_room_admin' \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"user_id": "@admin2:local"}'
+  -d '{"user_id": "@nick:local"}'
+```
 
-# Get access token
-curl -sk -X POST https://matrix.local/_matrix/client/v3/login \
+Production:
+```bash
+curl -sk -X POST 'https://matrix.35-201-14-61.sslip.io/_synapse/admin/v1/rooms/<room_id>/make_room_admin' \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"type":"m.login.password","user":"admin2","password":"<see .env.local>"}'
+  -d '{"user_id": "@nick:35-201-14-61.sslip.io"}'
+```
+
+Get access token:
+```bash
+curl -sk -X POST https://matrix.35-201-14-61.sslip.io/_matrix/client/v3/login \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"m.login.password","user":"nick","password":"<see vault>"}'
 ```
 
 ## Common Problems and Fixes
@@ -114,10 +143,23 @@ curl -sk -X POST https://matrix.local/_matrix/client/v3/login \
 
 The proven flow for creating a cross-platform bridged room:
 
-1. Bridge a Discord server to Matrix (via `@discordbot:local` DM -> `servers` -> `bridge`)
+1. Bridge a Discord server to Matrix (via `@discordbot` DM -> `servers` -> `bridge`)
 2. Get Telegram chat ID from the `matrix_mautrix_telegram` portal table
 3. In the Discord portal room: `!tg bridge -<chat_id>`
 4. If permission error: use `make_room_admin` API
 5. If Telegram already bridged elsewhere: `!tg unbridge-and-continue`
 6. Enable Discord relay: `!discord set-relay --create`
 7. Test both directions and verify ghost puppet relay for non-puppeted users
+
+## Secret Management
+
+All production secrets are encrypted with Ansible Vault (AES256).
+
+- **Encrypted file**: `production-vault.yml` (committed to repo)
+- **Vault password**: `.vault-password` (gitignored, shared out-of-band between teammates)
+- **deploy.sh** handles vault automatically during `configure` and `deploy` steps
+
+To view secrets: `ansible-vault view production-vault.yml --vault-password-file .vault-password`
+To edit secrets: `ansible-vault edit production-vault.yml --vault-password-file .vault-password`
+
+Vault contains: homeserver secret, postgres password, user passwords (nick, angie), Telegram API credentials.

@@ -65,7 +65,7 @@ Open https://matrix.35-201-14-61.sslip.io/_matrix/client/versions in your browse
 
 #### 2. Get a Matrix account
 
-Ask Nick to create an account for you, or if registration is enabled, create one at Element.
+Your account is created automatically during deployment. Ask Nick for your username and password (stored in the encrypted vault).
 
 #### 3. Log into Element
 
@@ -139,7 +139,7 @@ To bridge a new Discord channel with a Telegram group:
    curl -sk -X POST 'https://matrix.35-201-14-61.sslip.io/_synapse/admin/v1/rooms/<room_id>/make_room_admin' \
      -H "Authorization: Bearer $TOKEN" \
      -H 'Content-Type: application/json' \
-     -d '{"user_id": "@admin:35-201-14-61.sslip.io"}'
+     -d '{"user_id": "@nick:35-201-14-61.sslip.io"}'
    ```
 
 ### Infrastructure (admin only)
@@ -150,15 +150,29 @@ The server runs on a GCE e2-medium instance in `australia-southeast1`. Managed v
 # Provision/update infrastructure
 cd terraform && terraform apply -var='ssh_allowed_cidrs=["YOUR_IP/32"]'
 
-# Deploy/update Matrix server
-cd matrix-docker-ansible-deploy
-ansible-playbook -i inventory/hosts-production setup.yml --tags=setup-all,ensure-matrix-users-created,start
+# Deploy/update Matrix server (requires .vault-password file)
+./deploy.sh deploy
 
-# Or use the helper script
-./deploy.sh all
+# Or run Ansible directly
+cd matrix-docker-ansible-deploy
+ansible-playbook -i inventory/hosts-production setup.yml \
+  --vault-password-file ../.vault-password \
+  --tags=setup-all,ensure-matrix-users-created,start
 ```
 
-See `terraform/` for infrastructure config and `.env.production` for credentials (gitignored).
+### Secrets
+
+All production secrets are encrypted with Ansible Vault in `production-vault.yml` (committed to the repo). The vault password is in `.vault-password` (gitignored) -- ask a teammate for the key.
+
+```bash
+# View secrets
+ansible-vault view production-vault.yml --vault-password-file .vault-password
+
+# Edit secrets
+ansible-vault edit production-vault.yml --vault-password-file .vault-password
+```
+
+See `terraform/` for infrastructure config.
 
 ---
 
@@ -317,6 +331,8 @@ The playbook migrated from `devture_traefik_*` to `traefik_*`. Check the playboo
 | `matrix-docker-ansible-deploy/` | Ansible playbook (gitignored, clone separately) |
 | `matrix-docker-ansible-deploy/inventory/hosts` | Ansible inventory for Lima VM (local) |
 | `matrix-docker-ansible-deploy/inventory/hosts-production` | Ansible inventory for GCE (production) |
-| `.env.local` | Local credentials (gitignored) |
-| `.env.production` | Production credentials (gitignored) |
+| `production-vault.yml` | Encrypted production secrets (Ansible Vault) |
+| `.vault-password` | Vault decryption key (gitignored, shared between teammates) |
+| `.env.local` | Local dev credentials (gitignored) |
+| `.env.production` | Production URLs reference (gitignored, no secrets) |
 | `RESEARCH.md` | Detailed research on Matrix, bridges, and cross-platform puppeting |
