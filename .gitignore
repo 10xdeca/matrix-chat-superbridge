@@ -1,3 +1,4 @@
 .env.local
 .env.production
+.vault-password
 matrix-docker-ansible-deploy/
