@@ -130,7 +130,7 @@ step_configure() {
   fi
 
   # Read existing secrets from vault if it exists, otherwise generate new ones
-  local homeserver_secret postgres_password admin_password angie_password
+  local homeserver_secret postgres_password nick_password angie_password
   if [ -f "$VAULT_FILE" ]; then
     info "Reading existing secrets from encrypted vault..."
     local tmpvault
@@ -138,15 +138,14 @@ step_configure() {
     ansible-vault decrypt "$VAULT_FILE" --vault-password-file "$VAULT_PASSWORD_FILE" --output "$tmpvault"
     homeserver_secret=$(read_vault_var "$tmpvault" vault_homeserver_secret)
     postgres_password=$(read_vault_var "$tmpvault" vault_postgres_password)
-    admin_password=$(read_vault_var "$tmpvault" vault_admin_password)
+    nick_password=$(read_vault_var "$tmpvault" vault_nick_password)
     angie_password=$(read_vault_var "$tmpvault" vault_angie_password)
-    # Preserve Telegram creds from vault if .env.local matches
     rm -f "$tmpvault"
     warn "Reusing existing secrets from vault. Delete production-vault.yml to regenerate."
   else
     homeserver_secret=$(pwgen -s 64 1)
     postgres_password=$(pwgen -s 32 1)
-    admin_password=$(pwgen -s 16 1)
+    nick_password=$(pwgen -s 16 1)
     angie_password=$(pwgen -s 16 1)
     info "Generated fresh secrets."
   fi
@@ -162,7 +161,7 @@ step_configure() {
 
 vault_homeserver_secret: '$homeserver_secret'
 vault_postgres_password: '$postgres_password'
-vault_admin_password: '$admin_password'
+vault_nick_password: '$nick_password'
 vault_angie_password: '$angie_password'
 vault_telegram_api_id: '$telegram_api_id'
 vault_telegram_api_hash: '$telegram_api_hash'
@@ -184,7 +183,7 @@ ELEMENT_URL=https://element.$sslip_domain
 SYNAPSE_ADMIN_URL=https://synapse-admin.$sslip_domain
 
 # Users
-MATRIX_ADMIN_USER=admin
+MATRIX_NICK_USER=nick
 MATRIX_ANGIE_USER=angie
 EOF
   info "Updated $ENV_FILE"
@@ -236,8 +235,8 @@ matrix_synapse_admin_enabled: true
 # Admin users (created on deploy via ensure-matrix-users-created tag)
 # Add users here; passwords are initial-only (won't update existing users)
 matrix_user_creator_users_additional:
-  - username: admin
-    initial_password: "{{ vault_admin_password }}"
+  - username: nick
+    initial_password: "{{ vault_nick_password }}"
     initial_type: admin
   - username: angie
     initial_password: "{{ vault_angie_password }}"
