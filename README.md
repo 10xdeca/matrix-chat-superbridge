@@ -43,6 +43,125 @@ Discord Channel <--> Matrix Room <--> Telegram Group
 - **Discord webhooks**: Relay non-Discord users' messages with proper name/avatar attribution
 - **Element Web**: Matrix client for direct access
 
+## Production Server
+
+The superbridge is running on Google Cloud:
+
+| Service | URL |
+|---------|-----|
+| Matrix homeserver | https://matrix.35-201-14-61.sslip.io |
+| Element Web | https://element.35-201-14-61.sslip.io |
+| Synapse Admin | https://synapse-admin.35-201-14-61.sslip.io |
+
+**Self-signed SSL**: You must accept the certificate warning in your browser before anything will work. Visit the Matrix URL first and click through the warning.
+
+### For teammates: Using the Superbridge
+
+You don't need to install anything. The server is already running. Here's how to get set up:
+
+#### 1. Accept the self-signed certificate
+
+Open https://matrix.35-201-14-61.sslip.io/_matrix/client/versions in your browser and accept the security warning. You'll see a JSON response -- that means it worked.
+
+#### 2. Get a Matrix account
+
+Ask Nick to create an account for you, or if registration is enabled, create one at Element.
+
+#### 3. Log into Element
+
+1. Open https://element.35-201-14-61.sslip.io
+2. Click "Sign In"
+3. The homeserver should be pre-configured. If prompted, set it to `https://matrix.35-201-14-61.sslip.io`
+4. Sign in with your username and password
+
+#### 4. Connect your Discord account
+
+1. In Element, click the **+** next to "People" to start a new DM
+2. Search for `@discordbot:35-201-14-61.sslip.io` and start a chat
+3. The bot will greet you. Send: `login-qr`
+4. A QR code appears. Open **Discord mobile** > Settings > **Scan QR Code** and scan it
+5. Confirm on your phone. The bot will say "Successfully logged in as @yourusername"
+
+#### 5. Connect your Telegram account
+
+1. Start a new DM with `@telegrambot:35-201-14-61.sslip.io`
+2. The bot will greet you. Send: `login`
+3. Send your phone number with country code (e.g. `+61412345678`)
+4. Telegram will send you a code. Send it back to the bot
+5. The bot will say "Successfully logged in as @yourusername"
+
+#### 6. Using bridged rooms
+
+Once Discord and Telegram are connected:
+
+- **Bridged rooms** appear in your Element room list. Messages sent in Discord show up in the Matrix room and vice versa for Telegram.
+- **Your messages** on Matrix will appear as you on both Discord and Telegram (double puppeting).
+- **Other people's messages** from Discord/Telegram appear in the Matrix room with their name and avatar.
+- You can send messages from Element and they'll appear on both platforms.
+
+#### What each user sees
+
+| You send from | Discord users see | Telegram users see | Matrix users see |
+|---------------|-------------------|--------------------|------------------|
+| Discord | Your message (native) | Your name + message (ghost puppet) | Your name + message |
+| Telegram | Your name + message (webhook) | Your message (native) | Your name + message |
+| Element | Your message (double puppet) | Your message (double puppet) | Your message (native) |
+
+**Ghost puppet**: A bot account that displays your name and avatar, so the message looks like it came from you even though you don't have an account on that platform.
+
+**Double puppet**: If you've logged into both bridges, your messages appear as your actual account on both platforms -- indistinguishable from sending natively.
+
+### Creating a new Superbridge room (admin only)
+
+To bridge a new Discord channel with a Telegram group:
+
+1. **Bridge the Discord server** (if not already done):
+   - In your `@discordbot` DM, send: `guilds bridge <server_id>`
+   - This creates Matrix portal rooms for each Discord channel
+
+2. **Find the Telegram chat ID**:
+   - In your `@telegrambot` DM, send: `sync chats`
+   - Or SSH into the server and query: `sudo docker exec matrix-postgres psql -U matrix_mautrix_telegram -d matrix_mautrix_telegram -c "SELECT tgid, peer_type, title FROM portal;"`
+
+3. **Bridge them together** -- in the Discord portal room, send:
+   ```
+   !tg bridge -<telegram_chat_id>
+   ```
+   Use `-` prefix for groups, `-100` prefix for supergroups/channels.
+
+4. **Enable relay** for non-Discord users:
+   ```
+   !discord set-relay --create
+   ```
+
+5. If you get "Permission denied", SSH into the server and run:
+   ```bash
+   curl -sk -X POST 'https://matrix.35-201-14-61.sslip.io/_synapse/admin/v1/rooms/<room_id>/make_room_admin' \
+     -H "Authorization: Bearer $TOKEN" \
+     -H 'Content-Type: application/json' \
+     -d '{"user_id": "@admin:35-201-14-61.sslip.io"}'
+   ```
+
+### Infrastructure (admin only)
+
+The server runs on a GCE e2-medium instance in `australia-southeast1`. Managed via Terraform + Ansible.
+
+```bash
+# Provision/update infrastructure
+cd terraform && terraform apply -var='ssh_allowed_cidrs=["YOUR_IP/32"]'
+
+# Deploy/update Matrix server
+cd matrix-docker-ansible-deploy
+ansible-playbook -i inventory/hosts-production setup.yml --tags=setup-all,ensure-matrix-users-created,start
+
+# Or use the helper script
+./deploy.sh all
+```
+
+See `terraform/` for infrastructure config and `.env.production` for credentials (gitignored).
+
+---
+
 ## Local Development Setup
 
 ### Prerequisites
@@ -192,9 +311,12 @@ The playbook migrated from `devture_traefik_*` to `traefik_*`. Check the playboo
 
 | File | Purpose |
 |------|---------|
-| `matrix-vm.yaml` | Lima VM configuration |
+| `matrix-vm.yaml` | Lima VM configuration (local dev) |
+| `terraform/` | GCE infrastructure (Terraform) |
+| `deploy.sh` | Production deployment helper script |
 | `matrix-docker-ansible-deploy/` | Ansible playbook (gitignored, clone separately) |
-| `matrix-docker-ansible-deploy/inventory/hosts` | Ansible inventory for Lima VM |
-| `matrix-docker-ansible-deploy/inventory/host_vars/matrix.local/vars.yml` | Matrix server configuration |
+| `matrix-docker-ansible-deploy/inventory/hosts` | Ansible inventory for Lima VM (local) |
+| `matrix-docker-ansible-deploy/inventory/hosts-production` | Ansible inventory for GCE (production) |
 | `.env.local` | Local credentials (gitignored) |
+| `.env.production` | Production credentials (gitignored) |
 | `RESEARCH.md` | Detailed research on Matrix, bridges, and cross-platform puppeting |
