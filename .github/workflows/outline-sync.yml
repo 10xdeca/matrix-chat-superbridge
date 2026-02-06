@@ -1,0 +1,22 @@
+name: Sync Docs to Outline
+on:
+  push:
+    branches: [main]
+    paths: ['**/*.md']
+  pull_request:
+    paths: ['**/*.md']
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: 10xdeca/outline-sync-action@main
+        with:
+          outline_api_key: ${{ secrets.OUTLINE_API_KEY }}
+          collection_id: ${{ secrets.OUTLINE_COLLECTION_ID }}
+          sync_mode: ${{ github.event_name == 'push' && 'full' || 'changed' }}
+          exclude_pattern: 'CLAUDE.md,matrix-docker-ansible-deploy/**/*.md'
