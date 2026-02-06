@@ -1,5 +1,6 @@
 name: Sync Docs to Outline
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths: ['**/*.md']
@@ -18,5 +19,5 @@ jobs:
         with:
           outline_api_key: ${{ secrets.OUTLINE_API_KEY }}
           collection_id: ${{ secrets.OUTLINE_COLLECTION_ID }}
-          sync_mode: ${{ github.event_name == 'push' && 'full' || 'changed' }}
+          sync_mode: ${{ github.event_name == 'pull_request' && 'changed' || 'full' }}
           exclude_pattern: 'CLAUDE.md,matrix-docker-ansible-deploy/**/*.md'
