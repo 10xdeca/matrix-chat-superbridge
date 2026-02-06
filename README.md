@@ -82,7 +82,7 @@ Once Discord and Telegram are connected:
 To bridge a Discord channel with a Telegram group:
 
 1. **Bridge the Discord server** (if not already done):
-   - In your `@discordbot` DM, send: `guilds bridge <server_id>`
+   - In your `@discordbot` DM, send: `servers`, then select a server and `bridge`
 
 2. **Find the Telegram chat ID**:
    - In your `@telegrambot` DM, send: `sync chats`

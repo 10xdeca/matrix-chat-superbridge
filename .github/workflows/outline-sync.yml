@@ -1,6 +1,5 @@
 name: Sync Docs to Outline
 on:
-  workflow_dispatch:
   push:
     branches: [main]
     paths: ['**/*.md']
