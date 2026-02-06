@@ -315,14 +315,6 @@ Run `!discord set-relay --create` in the room to create a Discord webhook for re
 
 The playbook migrated from `devture_traefik_*` to `traefik_*`. Check the playbook changelog if you get unknown variable errors.
 
-### Bridge login fails with "duplicate key" error
-
-This happens when a Discord/Telegram account is already linked to another Matrix user. An admin needs to clear the old user's ID from the bridge database before you can log in. See CLAUDE.md "Migrating Bridge Logins Between Matrix Users" for the SQL commands.
-
-### Discord QR login keeps failing with "websocket: close sent"
-
-The QR codes expire quickly. Generate a fresh one with `login-qr` and scan immediately. If it keeps failing, ask an admin to restart the Discord bridge: `sudo systemctl restart matrix-mautrix-discord.service`
-
 ## Key Limitations
 
 - **True cross-platform puppeting** requires users to log into both bridges with double puppeting. This works for the bridge operator but not for casual users.
