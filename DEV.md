@@ -25,13 +25,13 @@ This creates an Ubuntu VM with Docker, forwarding:
 127.0.0.1 local matrix.local element.local synapse-admin.local
 ```
 
-## 3. Clone the Ansible playbook
+## 3. Initialize the Ansible playbook
+
+The playbook is already included in this repo at `matrix-docker-ansible-deploy/`. If it's empty (e.g., after a fresh clone), initialize the submodule:
 
 ```bash
-git clone https://github.com/spantaleev/matrix-docker-ansible-deploy.git
+git submodule update --init
 ```
-
-The inventory and vars are already configured in this repo.
 
 ## 4. Update the SSH port
 
@@ -81,9 +81,10 @@ Open `https://element.local:8443` and sign in.
 ### Telegram Bridge
 
 1. Start a DM with `@telegrambot:local` in Element
-2. Send `login-qr`
-3. Scan the QR code with Telegram mobile
-4. Sync chats with `sync`
+2. Send `login`
+3. Enter your phone number with country code (e.g., `+61412345678`)
+4. Enter the code Telegram sends you
+5. Sync chats with `sync`
 
 ## 9. Create a Superbridge room
 
