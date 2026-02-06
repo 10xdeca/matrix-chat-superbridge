@@ -104,37 +104,3 @@ To bridge a Discord channel and Telegram group together:
    ```
 5. Ensure your Matrix user has admin power level in the room (use Synapse admin API if needed)
 
-## Troubleshooting
-
-### Element can't connect to homeserver
-
-The browser needs to trust the self-signed certificate. Visit `https://matrix.local:8443/_matrix/client/versions` in a new tab and accept the warning. Also accept the cert at `https://element.local:8443`.
-
-### Element stuck on "Syncing..."
-
-Usually caused by URL mismatches. Ensure these are all set with port 8443:
-- `matrix_homeserver_url`
-- `matrix_synapse_public_baseurl`
-- `matrix_client_element_default_hs_url`
-
-### Telegram bridge kicks Discord bot from room
-
-The Telegram bridge removes non-Telegram users from portal rooms if there's no relay bot configured. Solutions:
-- Bridge from the Discord portal room instead (invite `@telegrambot:local` there)
-- Or configure a Telegram relay bot with a BotFather token
-
-### Bridge commands don't work in a room
-
-You may need admin power level. Use the Synapse admin API:
-```
-POST /_synapse/admin/v1/rooms/<room_id>/make_room_admin
-{"user_id": "@youruser:local"}
-```
-
-### Non-puppeted users' messages don't appear on Discord
-
-Run `!discord set-relay --create` in the room to create a Discord webhook for relaying messages from non-Discord users.
-
-### Variable naming errors in Ansible
-
-The playbook migrated from `devture_traefik_*` to `traefik_*`. Check the playbook changelog if you get unknown variable errors.
