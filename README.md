@@ -140,3 +140,5 @@ See [DEV.md](DEV.md) for running the superbridge locally on macOS with Lima.
 | `.vault-password` | Vault key (gitignored) |
 | `DEV.md` | Local development setup |
 | `RESEARCH.md` | Research on Matrix bridges |
+| `docs/how-superbridge-works.md` | How Matrix, mautrix, and puppeting work |
+| `docs/matrix-federation.md` | Explanation of Matrix federation |
