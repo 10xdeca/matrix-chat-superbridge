@@ -138,8 +138,7 @@ curl -sk -X POST https://matrix.35-201-14-61.sslip.io/_matrix/client/v3/login \
 6. **Discord `login` command not found**: Use `login-qr` instead
 7. **Ansible variable errors**: Check for `devture_traefik_*` -> `traefik_*` renames
 8. **Container logs not readable**: Use `journalctl -u matrix-<service>.service` instead of `docker logs`
-9. **Bridge login fails with "duplicate key" error**: The Discord/Telegram account is already linked to another Matrix user. See "Migrating Bridge Logins" below.
-10. **Discord QR login "websocket: close sent"**: QR expired or transient error. Generate a new one with `login-qr`. If persistent, restart the bridge service.
+9. **Discord QR login "websocket: close sent"**: QR expired or transient error. Generate a new one with `login-qr`. If persistent, restart the bridge service.
 
 ## Superbridge Setup (Bridging Discord <-> Telegram)
 
@@ -152,54 +151,6 @@ The proven flow for creating a cross-platform bridged room:
 5. If Telegram already bridged elsewhere: `!tg unbridge-and-continue`
 6. Enable Discord relay: `!discord set-relay --create`
 7. Test both directions and verify ghost puppet relay for non-puppeted users
-
-## Migrating Bridge Logins Between Matrix Users
-
-Bridge logins (Discord/Telegram accounts) are tied to a specific Matrix user. If you need to transfer a login to a different Matrix user (e.g., after renaming admin -> nick), you must clear the old user's ID from the bridge database.
-
-### Discord Bridge
-
-```bash
-# SSH into the server
-ssh nick@35.201.14.61
-
-# Check current Discord user mappings
-sudo docker exec matrix-postgres psql -U matrix_mautrix_discord -d matrix_mautrix_discord \
-  -c 'SELECT mxid, dcid FROM "user";'
-
-# Clear the old user's Discord ID (replace @olduser with actual mxid)
-sudo docker exec matrix-postgres psql -U matrix_mautrix_discord -d matrix_mautrix_discord \
-  -c "UPDATE \"user\" SET dcid = '' WHERE mxid = '@olduser:35-201-14-61.sslip.io';"
-
-# Restart the bridge
-sudo systemctl restart matrix-mautrix-discord.service
-```
-
-### Telegram Bridge
-
-Telegram has foreign key constraints, so you must delete related records first:
-
-```bash
-# Check current Telegram user mappings
-sudo docker exec matrix-postgres psql -U matrix_mautrix_telegram -d matrix_mautrix_telegram \
-  -c 'SELECT mxid, tgid FROM "user";'
-
-# Get the old user's tgid (e.g., 2122439699)
-# Delete related records first (replace TGID with actual value)
-sudo docker exec matrix-postgres psql -U matrix_mautrix_telegram -d matrix_mautrix_telegram \
-  -c 'DELETE FROM user_portal WHERE "user" = TGID;'
-sudo docker exec matrix-postgres psql -U matrix_mautrix_telegram -d matrix_mautrix_telegram \
-  -c 'DELETE FROM contact WHERE "user" = TGID;'
-
-# Now clear the tgid
-sudo docker exec matrix-postgres psql -U matrix_mautrix_telegram -d matrix_mautrix_telegram \
-  -c "UPDATE \"user\" SET tgid = NULL WHERE mxid = '@olduser:35-201-14-61.sslip.io';"
-
-# Restart the bridge
-sudo systemctl restart matrix-mautrix-telegram.service
-```
-
-After clearing the old records, log in again with the new Matrix user via `login-qr` (Discord) or `login` (Telegram).
 
 ## Secret Management
 
