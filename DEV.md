@@ -105,3 +105,39 @@ To bridge a Discord channel and Telegram group together:
    ```
 5. Ensure your Matrix user has admin power level in the room (use Synapse admin API if needed)
 
+## Lima VM Details
+
+- Name: `matrix`
+- SSH: `limactl shell matrix` or `ssh -p <port> nick@127.0.0.1`
+- SSH key: `/Users/nick/.lima/_config/user`
+- Port changes on restart -- check with `limactl list` and update `inventory/hosts`
+
+## Local Credentials
+
+Stored in `.env.local` (gitignored). Used for local dev only.
+
+## Local Ansible Vars
+
+`matrix-docker-ansible-deploy/inventory/host_vars/matrix.local/vars.yml`
+
+Critical settings that were painful to debug:
+- `matrix_homeserver_url`: MUST include `:8443` port
+- `matrix_synapse_public_baseurl`: MUST include `:8443` port (fixes Element "syncing" freeze)
+- `matrix_client_element_default_hs_url`: MUST include `:8443` port
+- `traefik_*` variables (NOT `devture_traefik_*` -- naming changed in playbook migration)
+- `traefik_ssl_test: true` for self-signed certs
+
+## Local Synapse Admin API
+
+```bash
+curl -sk -X POST 'https://matrix.local:8443/_synapse/admin/v1/rooms/<room_id>/make_room_admin' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id": "@nick:local"}'
+```
+
+## Local Troubleshooting
+
+1. **Element can't connect**: Browser needs to accept self-signed cert at `https://matrix.local:8443/_matrix/client/versions` first
+2. **Element stuck syncing**: Missing `:8443` port in `matrix_synapse_public_baseurl`
+3. **DM popup disappears in Element**: Chrome bug -- use Safari, or clear site data

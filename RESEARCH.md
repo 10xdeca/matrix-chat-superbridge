@@ -1193,7 +1193,9 @@ Ranked by feasibility and practical value:
 
 ### Setup
 
-- **Matrix homeserver**: Synapse via matrix-docker-ansible-deploy, running in Lima VM on macOS
+> **Note:** These tests were performed on a local development environment (Lima VM on macOS). The production superbridge now runs on a GCE VPS at `35-201-14-61.sslip.io`.
+
+- **Matrix homeserver**: Synapse via matrix-docker-ansible-deploy (local dev: Lima VM on macOS; production: GCE VPS)
 - **Discord bridge**: mautrix-discord v0.7.2 with double puppeting
 - **Telegram bridge**: mautrix-telegram v0.15.3 with double puppeting
 - **Test room**: Discord `#general` (enspyrco server) bridged to Telegram "Superbridge test" group
