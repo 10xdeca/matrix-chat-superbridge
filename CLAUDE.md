@@ -2,119 +2,133 @@
 
 ## Project Overview
 
-Matrix Chat Superbridge -- bridge Discord, Telegram (and potentially more) through a self-hosted Matrix server so users can communicate across platforms. Uses matrix-docker-ansible-deploy with mautrix bridges and double puppeting.
+Matrix Chat Superbridge — bridge Discord, Telegram, Signal, and WhatsApp through a self-hosted Matrix server so users can communicate across platforms. Uses Continuwuity (Rust homeserver) with mautrix bridges and a custom appservice relay bot for puppet-based message attribution.
 
 ## Architecture
 
-- **GCE VPS** (`35.201.14.61`): Ubuntu VM running Docker containers on Google Cloud
-- **Synapse**: Matrix homeserver running in Docker
-- **Traefik**: Reverse proxy with SSL
-- **mautrix-discord**: Discord bridge with double puppeting
-- **mautrix-telegram**: Telegram bridge with double puppeting
+```
+Discord ←→ mautrix-discord ←→ Portal Room ←→ RELAY BOT ←→ Hub Room (Matrix)
+Telegram ←→ mautrix-telegram ←→ Portal Room ←→ RELAY BOT ↕
+Signal ←→ mautrix-signal ←→ Portal Room ←→ RELAY BOT ↕
+WhatsApp ←→ mautrix-whatsapp ←→ Portal Room ←→ RELAY BOT ↕
+```
+
+### Services (docker-compose)
+- **Traefik v3.6**: Reverse proxy with Let's Encrypt SSL
+- **Continuwuity 0.5.6**: Rust-based Matrix homeserver (embedded RocksDB, no PostgreSQL)
 - **Element Web**: Matrix client at `https://element.35-201-14-61.sslip.io`
-- **Synapse Admin**: Admin UI at `https://synapse-admin.35-201-14-61.sslip.io`
+- **mautrix-discord**: Discord bridge (Go)
+- **mautrix-telegram**: Telegram bridge (Python, requires API credentials)
+- **mautrix-signal**: Signal bridge (Go)
+- **mautrix-whatsapp**: WhatsApp bridge (Go)
+- **relay-bot**: Custom Python appservice for cross-platform puppet relay
+
+### Relay Bot (`relay/`)
+The relay bot is the core innovation — instead of text-attributed messages like `"**Alice (Discord):** hello"`, it creates puppet Matrix users (`@_relay_discord_a1b2c3d4:domain`) that send messages with the real sender's name and avatar. Key modules:
+- `handler.py` — Message routing: portal→hub, hub→portals, portal→portal (cross-relay)
+- `puppet.py` — Puppet user creation with profile sync
+- `event_map.py` — SQLite event ID mapping for cross-platform replies and reactions
+- `loop_prevention.py` — 3-layer message filtering to prevent echoes
+- `config.py` — Environment-based config with double puppet mapping
 
 ## Production Environment
 
-- Host: `35.201.14.61` (GCE)
+- Host: `35.201.14.61` (GCE e2-medium, Ubuntu)
 - Domain: `35-201-14-61.sslip.io`
 - SSH: `ssh nick@35.201.14.61`
+- VPS directory: `~/matrix-chat-superbridge`
+- Admin user: `@nick:35-201-14-61.sslip.io`
 
-### Credentials (Production)
-All production secrets are encrypted with Ansible Vault in `production-vault.yml` (committed).
-- Vault password file: `.vault-password` (gitignored, shared between teammates)
-- Decrypt: `ansible-vault view production-vault.yml --vault-password-file .vault-password`
-- Edit: `ansible-vault edit production-vault.yml --vault-password-file .vault-password`
-- Admin users: `nick` and `angie` (both server admins, passwords in vault)
+### Secrets
+All secrets are in `.env` on the VPS (not committed). `.env.example` in the repo shows the structure.
+- `REGISTRATION_TOKEN` — Continuwuity user registration token
+- `RELAY_AS_TOKEN` / `RELAY_HS_TOKEN` — Relay bot appservice tokens
+- Telegram API credentials (api_id, api_hash)
 
-### Running Ansible
+### Deployment
 
 ```bash
-cd matrix-docker-ansible-deploy
-ansible-playbook -i inventory/hosts-production setup.yml \
-  --vault-password-file ../.vault-password \
-  --tags=setup-all,ensure-matrix-users-created,start
+# First-time setup
+./deploy.sh setup
 
-# Or use the helper script:
+# Update (copy files, rebuild, restart)
 ./deploy.sh deploy
+
+# Verify services
+./deploy.sh verify
+
+# Create superbridge room
+./superbridge.sh all
 ```
 
 ## Bridge Operations
 
-### Accessing bridge databases (via SSH into VPS)
+### Appservice registration (Continuwuity)
+Bridges register via the admin room (`#admins:35-201-14-61.sslip.io`):
+```
+!admin appservices register
+
+```yaml
+<paste registration.yaml contents>
+```
+```
+
+### Accessing bridge databases (SQLite, via SSH)
 ```bash
-# Telegram bridge
-sudo docker exec matrix-postgres psql -U matrix_mautrix_telegram -d matrix_mautrix_telegram
+# Get volume path
+vol=$(sg docker -c 'docker volume inspect matrix-chat-superbridge_discord_data --format "{{.Mountpoint}}"')
 
-# Discord bridge
-sudo docker exec matrix-postgres psql -U matrix_mautrix_discord -d matrix_mautrix_discord
-
-# Synapse
-sudo docker exec matrix-postgres psql -U synapse -d synapse
+# Read SQLite database
+sudo sqlite3 $vol/discord.db "SELECT mxid, plain_name FROM portal WHERE mxid IS NOT NULL;"
 ```
 
-### Useful database queries
-```sql
--- Find Telegram chat ID for bridging
-SELECT tgid, peer_type, mxid, title FROM portal;
+### Bridge login commands (in Element, DM the bot)
+- Discord: `login-qr` (scan QR with mobile app)
+- Telegram: `login` (enter phone number)
+- Signal: `login` (link as secondary device)
+- WhatsApp: `login` (scan QR with WhatsApp mobile)
 
--- Find Discord portal rooms
-SELECT mxid, plain_name, name FROM portal WHERE mxid IS NOT NULL;
-```
+### Bridge commands (in room)
+- `!tg bridge -<chat_id>` — Bridge Telegram group to current room
+- `!discord bridge <channel-id>` — Bridge Discord channel to current room
+- `!discord set-relay` — Enable relay mode for non-Discord users
+- `!wa open <group-jid>` — Bridge WhatsApp group (experimental)
 
-### Bridge commands (in Element)
-- `!tg bridge -<chat_id>` -- Bridge a Telegram group to current room
-- `!tg unbridge-and-continue` -- Unbridge existing portal and rebridge here
-- `!discord set-relay --create` -- Create webhook for relaying non-Discord messages
-- `!tg id` -- Get Telegram chat ID for current room
-- `!tg sync chats` -- Sync Telegram chats to Matrix
+## Superbridge Setup Flow
 
-### Synapse Admin API
-
-```bash
-curl -sk -X POST 'https://matrix.35-201-14-61.sslip.io/_synapse/admin/v1/rooms/<room_id>/make_room_admin' \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"user_id": "@nick:35-201-14-61.sslip.io"}'
-```
-
-Get access token:
-```bash
-curl -sk -X POST https://matrix.35-201-14-61.sslip.io/_matrix/client/v3/login \
-  -H 'Content-Type: application/json' \
-  -d '{"type":"m.login.password","user":"nick","password":"<see vault>"}'
-```
+1. `./superbridge.sh create-room` — Create unencrypted hub room
+2. `./superbridge.sh invite-bots` — Invite bridge bots, set power levels
+3. Bridge each platform into the hub room (see `./superbridge.sh plumb-discord`, etc.)
+4. Configure relay bot: set `PORTAL_ROOMS` and `HUB_ROOM_ID` in `.env`
+5. Register relay bot appservice in admin room
+6. Start relay bot: `docker compose up -d relay-bot`
 
 ## Common Problems and Fixes
 
-1. **Telegram kicks Discord bot**: Bridge from the Discord portal room side instead; invite `@telegrambot` there
-2. **"Permission denied" on bridge commands**: Use Synapse admin API `make_room_admin` endpoint
-3. **Discord `login` command not found**: Use `login-qr` instead
-4. **Ansible variable errors**: Check for `devture_traefik_*` -> `traefik_*` renames
-5. **Container logs not readable**: Use `journalctl -u matrix-<service>.service` instead of `docker logs`
-6. **Discord QR login "websocket: close sent"**: QR expired or transient error. Generate a new one with `login-qr`. If persistent, restart the bridge service.
+1. **Bridge says "as_token not accepted"**: Register the bridge's `registration.yaml` in the admin room
+2. **Bridge can't open database**: Go bridges use `file:///data/<name>.db` URIs, not `sqlite://`
+3. **Signal/WhatsApp unreachable from homeserver**: Set `appservice.hostname: 0.0.0.0` (default is 127.0.0.1)
+4. **Discord `login` not found**: Use `login-qr` instead
+5. **Traefik can't connect to Docker**: Need Traefik v3.6+ for Docker Engine 29+
+6. **Telegram bridge crash-loops**: Needs `telegram.api_id` and `telegram.api_hash` from https://my.telegram.org
+7. **Continuwuity admin commands fail**: YAML must be in a markdown code block (triple backticks)
 
-## Superbridge Setup (Bridging Discord <-> Telegram)
+## File Structure
 
-The proven flow for creating a cross-platform bridged room:
-
-1. Bridge a Discord server to Matrix (via `@discordbot` DM -> `servers` -> `bridge`)
-2. Get Telegram chat ID from the `matrix_mautrix_telegram` portal table
-3. In the Discord portal room: `!tg bridge -<chat_id>`
-4. If permission error: use `make_room_admin` API
-5. If Telegram already bridged elsewhere: `!tg unbridge-and-continue`
-6. Enable Discord relay: `!discord set-relay --create`
-7. Test both directions and verify ghost puppet relay for non-puppeted users
-
-## Secret Management
-
-All production secrets are encrypted with Ansible Vault (AES256).
-
-- **Encrypted file**: `production-vault.yml` (committed to repo)
-- **Vault password**: `.vault-password` (gitignored, shared out-of-band between teammates)
-- **deploy.sh** handles vault automatically during `configure` and `deploy` steps
-
-To view secrets: `ansible-vault view production-vault.yml --vault-password-file .vault-password`
-To edit secrets: `ansible-vault edit production-vault.yml --vault-password-file .vault-password`
-
-Vault contains: homeserver secret, postgres password, user passwords (nick, angie), Telegram API credentials.
+```
+├── docker-compose.yml          # Full stack definition
+├── .env.example                # Configuration template
+├── deploy.sh                   # Deployment automation
+├── superbridge.sh              # Room creation and bridge plumbing
+├── element-config.json.template # Element Web config template
+├── scripts/backup-to-git.sh    # Daily backup script
+├── relay/                      # Relay bot appservice
+│   ├── appservice/             # Python source (6 modules)
+│   ├── tests/                  # Test suite (141 tests)
+│   ├── Dockerfile
+│   ├── registration.yaml       # Appservice registration template
+│   └── requirements.txt
+├── terraform/                  # GCE infrastructure (still valid)
+├── docs/                       # Architecture documentation
+└── matrix-docker-ansible-deploy/ # Old Ansible playbook (unused)
+```

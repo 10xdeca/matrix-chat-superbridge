@@ -1,144 +1,138 @@
 # Matrix Chat Superbridge
 
-Bridge multiple chat platforms (Discord, Telegram, etc.) through Matrix so users can communicate across platforms as themselves.
+Bridge Discord, Telegram, Signal, and WhatsApp through Matrix so users can communicate across platforms as themselves.
 
 ## How It Works
 
 ```
-Discord Channel <--> Matrix Room <--> Telegram Group
+Discord  ←→  mautrix-discord  ←→  Portal Room  ←→ ┐
+Telegram ←→  mautrix-telegram ←→  Portal Room  ←→ ├─  Relay Bot  ←→  Hub Room (Matrix)
+Signal   ←→  mautrix-signal   ←→  Portal Room  ←→ ┤
+WhatsApp ←→  mautrix-whatsapp ←→  Portal Room  ←→ ┘
 ```
 
-- **Fully puppeted users** (logged into both bridges): Messages appear as their real account on both platforms
-- **Single-platform users**: Messages relay via ghost puppets with their name and avatar -- no account needed on the other platform
-- **Matrix users**: Messages appear as them on all bridged platforms via double puppeting
+Each platform is bridged to Matrix via [mautrix](https://docs.mau.fi/) bridges. A custom **relay bot** (appservice) copies messages between portal rooms and a shared hub room using **puppet users** — so messages appear as the actual sender with their real name and avatar, not as `"**Alice (Discord):** hello"`.
+
+### What each user sees
+
+| You send from | Discord users see | Telegram users see | Signal users see | Matrix users see |
+|---------------|-------------------|--------------------|------------------|------------------|
+| Discord | Native message | Puppet with your name/avatar | Puppet with your name/avatar | Puppet with your name/avatar |
+| Telegram | Webhook with your name | Native message | Puppet with your name/avatar | Puppet with your name/avatar |
+| Signal | Puppet with your name/avatar | Puppet with your name/avatar | Native message | Puppet with your name/avatar |
+| Element | Double puppet (as you) | Double puppet (as you) | Double puppet (as you) | Native message |
 
 ## Production Server
 
-The superbridge is running on Google Cloud:
+Running on Google Cloud (GCE e2-medium, `australia-southeast1`):
 
 | Service | URL |
 |---------|-----|
-| Matrix homeserver | https://matrix.35-201-14-61.sslip.io |
-| Element Web | https://element.35-201-14-61.sslip.io |
-| Synapse Admin | https://synapse-admin.35-201-14-61.sslip.io |
-
-**Self-signed SSL**: You must accept the certificate warning in your browser before anything will work. Visit the Matrix URL first and click through the warning.
+| Matrix homeserver (Continuwuity) | https://matrix.35-201-14-61.sslip.io |
+| Element Web client | https://element.35-201-14-61.sslip.io |
 
 ## For Teammates: Getting Started
 
 You don't need to install anything. The server is already running.
 
-### 1. Accept the self-signed certificate
-
-Open https://matrix.35-201-14-61.sslip.io/_matrix/client/versions in your browser and accept the security warning. You'll see a JSON response -- that means it worked.
-
-### 2. Get your Matrix account
-
-Your account is created automatically during deployment. Ask Nick for your username and password.
-
-### 3. Log into Element
+### 1. Log into Element
 
 1. Open https://element.35-201-14-61.sslip.io
 2. Click "Sign In"
 3. The homeserver should be pre-configured. If prompted, set it to `https://matrix.35-201-14-61.sslip.io`
-4. Sign in with your username and password
+4. Sign in with your credentials (ask Nick)
 
-### 4. Connect your Discord account
+### 2. Connect your accounts
 
-1. In Element, click the **+** next to "People" to start a new DM
-2. Search for `@discordbot:35-201-14-61.sslip.io` and start a chat
-3. Send: `login-qr`
-4. A QR code appears. Open **Discord mobile** > Settings > **Scan QR Code** and scan it
-5. Confirm on your phone. The bot will say "Successfully logged in as @yourusername"
+In Element, start a DM with each bridge bot and follow the login flow:
 
-### 5. Connect your Telegram account
+| Platform | Bot | Login command | How to authenticate |
+|----------|-----|---------------|---------------------|
+| Discord | `@discordbot:35-201-14-61.sslip.io` | `login-qr` | Scan QR with Discord mobile |
+| Telegram | `@telegrambot:35-201-14-61.sslip.io` | `login` | Enter phone number + verification code |
+| Signal | `@signalbot:35-201-14-61.sslip.io` | `login` | Link as secondary device from Signal mobile |
+| WhatsApp | `@whatsappbot:35-201-14-61.sslip.io` | `login` | Scan QR with WhatsApp mobile |
 
-1. Start a new DM with `@telegrambot:35-201-14-61.sslip.io`
-2. Send: `login`
-3. Send your phone number with country code (e.g. `+61412345678`)
-4. Telegram will send you a code. Send it back to the bot
-5. The bot will say "Successfully logged in as @yourusername"
+### 3. Using bridged rooms
 
-### 6. Using bridged rooms
-
-Once Discord and Telegram are connected:
-
+Once connected:
 - **Bridged rooms** appear in your Element room list
-- **Your messages** on Matrix appear as you on both Discord and Telegram (double puppeting)
-- **Other people's messages** from Discord/Telegram appear with their name and avatar
-
-### What each user sees
-
-| You send from | Discord users see | Telegram users see | Matrix users see |
-|---------------|-------------------|--------------------|------------------|
-| Discord | Your message (native) | Your name + message (ghost puppet) | Your name + message |
-| Telegram | Your name + message (webhook) | Your message (native) | Your name + message |
-| Element | Your message (double puppet) | Your message (double puppet) | Your message (native) |
+- **Your messages** on Matrix appear as you on all platforms (double puppeting)
+- **Other people's messages** from any platform appear with their name and avatar
 
 ## Admin Guide
 
-### Creating a new Superbridge room
-
-To bridge a Discord channel with a Telegram group:
-
-1. **Bridge the Discord server** (if not already done):
-   - In your `@discordbot` DM, send: `servers`, then select a server and `bridge`
-
-2. **Find the Telegram chat ID**:
-   - In your `@telegrambot` DM, send: `sync chats`
-   - Or query the database: `SELECT tgid, peer_type, title FROM portal;`
-
-3. **Bridge them together** -- in the Discord portal room, send:
-   ```
-   !tg bridge -<telegram_chat_id>
-   ```
-
-4. **Enable relay** for non-Discord users:
-   ```
-   !discord set-relay --create
-   ```
-
-### Infrastructure
-
-GCE e2-medium in `australia-southeast1`. Managed via Terraform + Ansible.
+### Deploying
 
 ```bash
-# Deploy/update
+# First-time setup (provisions VPS, generates tokens, starts services)
+./deploy.sh setup
+
+# Update (copy files, rebuild, restart)
 ./deploy.sh deploy
 
-# Or manually
-cd matrix-docker-ansible-deploy
-ansible-playbook -i inventory/hosts-production setup.yml \
-  --vault-password-file ../.vault-password \
-  --tags=setup-all,ensure-matrix-users-created,start
+# Check service health
+./deploy.sh verify
 ```
+
+### Creating a superbridge room
+
+```bash
+# Creates hub room, invites bridge bots, sets power levels
+./superbridge.sh all
+
+# Then follow per-platform plumbing instructions:
+./superbridge.sh plumb-discord
+./superbridge.sh plumb-telegram
+./superbridge.sh plumb-whatsapp
+```
+
+After plumbing, configure the relay bot by setting `PORTAL_ROOMS` and `HUB_ROOM_ID` in `.env` on the VPS, registering the relay bot appservice in the admin room, and restarting.
+
+### Registering appservices (Continuwuity)
+
+In the admin room (`#admins:35-201-14-61.sslip.io`), send:
+
+````
+!admin appservices register
+
+```yaml
+<paste contents of registration.yaml>
+```
+````
 
 ### Secrets
 
-All secrets are encrypted with Ansible Vault in `production-vault.yml`. The vault password is in `.vault-password` (gitignored) -- ask a teammate for the key.
+All secrets live in `.env` on the VPS (not committed to git). See `.env.example` for the structure. SSH access: `ssh nick@35.201.14.61`.
 
-```bash
-ansible-vault view production-vault.yml --vault-password-file .vault-password
-```
+### Infrastructure
 
-## Local Development
+- GCE instance managed by Terraform (`terraform/`)
+- Stack managed by `docker-compose.yml` (no Ansible)
+- Daily backups via `scripts/backup-to-git.sh`
 
-See [DEV.md](DEV.md) for running the superbridge locally on macOS with Lima.
+## Architecture
 
-## Key Limitations
-
-- **True cross-platform puppeting** requires users to log into both bridges. This works for the bridge operator but not for casual users.
-- **Ghost puppets** provide the next-best experience: messages show with the sender's name and avatar but come from a bridge bot/webhook.
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Homeserver | [Continuwuity](https://github.com/continuwuation/continuwuity) (Rust) | Matrix server with embedded RocksDB |
+| Reverse proxy | Traefik v3.6 | SSL termination, Let's Encrypt |
+| Client | Element Web | Browser-based Matrix client |
+| Bridges | mautrix (Go/Python) | Platform ↔ Matrix protocol translation |
+| Relay bot | Custom Python appservice | Cross-platform puppet relay with replies/reactions |
+| Database | SQLite (per-service) | No shared database server |
 
 ## Files
 
 | File | Purpose |
 |------|---------|
+| `docker-compose.yml` | Full stack definition (7 services) |
+| `.env.example` | Configuration template |
+| `deploy.sh` | Deployment automation |
+| `superbridge.sh` | Room creation and bridge plumbing |
+| `relay/` | Relay bot appservice (Python, 141 tests) |
+| `scripts/backup-to-git.sh` | Daily backup of configs + databases |
 | `terraform/` | GCE infrastructure (Terraform) |
-| `deploy.sh` | Production deployment helper |
-| `production-vault.yml` | Encrypted secrets (Ansible Vault) |
-| `.vault-password` | Vault key (gitignored) |
-| `DEV.md` | Local development setup |
+| `docs/` | Architecture documentation |
 | `RESEARCH.md` | Research on Matrix bridges |
-| `docs/how-superbridge-works.md` | How Matrix, mautrix, and puppeting work |
-| `docs/matrix-federation.md` | Explanation of Matrix federation |
+| `DEV.md` | Local development notes |
