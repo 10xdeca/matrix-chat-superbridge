@@ -2,3 +2,5 @@
 .env.production
 .vault-password
 matrix-docker-ansible-deploy/
+__pycache__/
+.pytest_cache/
